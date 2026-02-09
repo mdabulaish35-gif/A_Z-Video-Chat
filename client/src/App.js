@@ -35,7 +35,7 @@ const Icons = {
     CallEnd: () => <svg fill="white" height="24" viewBox="0 0 24 24" width="24"><path d="M12 9c-1.6 0-3.15.25-4.6.72-.81.26-1.38 1-1.38 1.87v2.23c0 .85.55 1.6 1.34 1.82.93.26 1.9.43 2.89.49.62.04 1.18-.32 1.41-.88l1.04-2.58c.17-.42.66-.63 1.09-.45.42.17.64.66.47 1.09l-1.04 2.58c-.53 1.33-1.85 2.18-3.28 2.09-1.42-.09-2.76-.36-4.04-.78-1.78-.58-3-2.25-3-4.13V11.6c0-1.95 1.27-3.61 3.09-4.2C8.5 6.42 10.22 6 12 6s3.5.42 5.09 1.4c1.82.59 3.09 2.25 3.09 4.2v1.52c0 1.88-1.22 3.55-3 4.13-1.28.42-2.62.69-4.04.78-1.43.09-2.75-.76-3.28-2.09l-1.04-2.58c-.17-.43.05-.92.47-1.09.43-.18.92.03 1.09.45l1.04 2.58c.23.56.79.92 1.41.88.99-.06 1.96-.23 2.89-.49.79-.22 1.34-.97 1.34-1.82v-2.23c0-.87-.57-1.61-1.38-1.87C15.15 9.25 13.6 9 12 9z" transform="scale(1.2) translate(-2, -2)" fill="#fff"/></svg>
 };
 
-// --- VIDEO COMPONENT ---
+// --- VIDEO COMPONENT (Self-Destruct) ---
 const Video = (props) => {
     const ref = useRef();
     const [isVisible, setIsVisible] = useState(true);
@@ -49,8 +49,9 @@ const Video = (props) => {
             if (peer._remoteStreams && peer._remoteStreams.length > 0) {
                 if (ref.current) ref.current.srcObject = peer._remoteStreams[0];
             }
-            peer.on("close", () => setIsVisible(false));
-            peer.on("error", () => setIsVisible(false));
+            // Auto Hide Logic
+            peer.on("close", () => { setIsVisible(false); });
+            peer.on("error", () => { setIsVisible(false); });
         }
         return () => { if (peer) peer.off("stream", handleStream); };
     }, [props.peer]);
@@ -82,6 +83,7 @@ function App() {
     const [bigMe, setBigMe] = useState(false);
     const [facingMode, setFacingMode] = useState("user");
     
+    // Splash Screen State
     const [showSplash, setShowSplash] = useState(true);
 
     const isLeaving = useRef(false);
@@ -90,9 +92,11 @@ function App() {
     const streamRef = useRef();
     const isOneOnOne = peers.length === 1;
 
-    // --- SPLASH SCREEN LOGIC ---
+    // --- SPLASH SCREEN EFFECT ---
     useEffect(() => {
-        const timer = setTimeout(() => setShowSplash(false), 3000);
+        // 3 seconds ke baad humara splash hatega
+        // Kyunki manifest bhi black hai, user ko lagega ek hi splash hai
+        const timer = setTimeout(() => setShowSplash(false), 3000); 
         return () => clearTimeout(timer);
     }, []);
 
@@ -163,11 +167,24 @@ function App() {
             if (item) item.signal(payload.signal);
         });
 
+        // --- FIXED USER LEFT LOGIC ---
         socket.on("user left", id => {
+            console.log("🔴 User Left ID:", id);
+            
+            // 1. Connection todna
             const peerObj = peersRef.current.find(p => p.peerID === id);
-            if (peerObj) { try { peerObj.destroy(); } catch(e){} }
+            if (peerObj) {
+                try { peerObj.destroy(); } catch(e){}
+            }
+
+            // 2. Ref List Update
             peersRef.current = peersRef.current.filter(p => p.peerID !== id);
-            setPeers(prevPeers => [...prevPeers.filter(peer => peer.peerID !== id)]);
+
+            // 3. Force Screen Update
+            setPeers(prevPeers => {
+                const newPeers = prevPeers.filter(peer => peer.peerID !== id);
+                return [...newPeers];
+            });
         });
 
         return () => { 
@@ -280,7 +297,7 @@ function App() {
         return bigMe ? styles.oneOnOnePeer : { ...styles.floatingMe, left: pos.x, top: pos.y };
     };
 
-    // --- SPLASH SCREEN ---
+    // --- SPLASH SCREEN RENDER ---
     if (showSplash) {
         return (
             <div style={styles.splashContainer}>
@@ -304,7 +321,7 @@ function App() {
 
             {!joined ? (
                 <div style={styles.loginContainer}>
-                    {/* BACKGROUND IMAGE WITH FLOAT ANIMATION */}
+                    {/* ENHANCED FLOATING BACKGROUND (Auto Animation via JS injected CSS) */}
                     <img 
                         src="/background-collage.png" 
                         alt="Background Decoration"
@@ -333,7 +350,7 @@ function App() {
                             if (!peer.peerID) return null; 
                             return (
                                 <Video 
-                                    key={peer.peerID}
+                                    key={peer.peerID} // KEY IS IMPORTANT FOR REMOVAL
                                     peer={peer} 
                                     customStyle={getPeerStyle()} 
                                     onDragStart={getDragHandlers(isOneOnOne && bigMe).onDragStart}
@@ -378,11 +395,12 @@ const styles = {
         flex: 1, display: "flex", justifyContent: "center", alignItems: "center", 
         background: "#000", position: "relative", overflow: "hidden" 
     },
-    // UPDATED BACKGROUND STYLE WITH ANIMATION
+    // --- HEAVY FLOATING BACKGROUND STYLE ---
     backgroundImage: {
-        position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-        objectFit: 'cover', objectPosition: 'center', opacity: 0.3, zIndex: 1,
-        animation: 'floatBackground 20s ease-in-out infinite alternate', // Animation Added Here
+        position: 'absolute', 
+        top: '-15%', left: '-15%', width: '130%', height: '130%', // Size badhaya taaki edge na dikhe
+        objectFit: 'cover', opacity: 0.3, zIndex: 1,
+        animation: 'floatAnimation 18s ease-in-out infinite alternate', 
     },
     loginCard: { 
         background: "rgba(30, 30, 30, 0.9)", backdropFilter: "blur(10px)",
@@ -391,9 +409,10 @@ const styles = {
         zIndex: 2, position: "relative", boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.37)"
     },
     
+    // --- SPLASH SCREEN ---
     splashContainer: {
         position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-        background: '#000000', 
+        background: '#000000', // Pura Black to Match Manifest
         display: 'flex', justifyContent: 'center', alignItems: 'center',
         zIndex: 9999,
     },
@@ -424,12 +443,16 @@ const styles = {
     controlBtn: { width: "45px", height: "45px", borderRadius: "50%", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }
 };
 
+// --- ANIMATION INJECTION (Automatic) ---
 if (typeof document !== 'undefined') {
     const styleSheet = document.createElement("style");
     styleSheet.innerText = `
-        @keyframes floatBackground { 
-            0% { transform: scale(1); } 
-            100% { transform: scale(1.1); } 
+        @keyframes floatAnimation { 
+            0% { transform: scale(1) translate(0px, 0px); } 
+            25% { transform: scale(1.05) translate(-30px, 15px); }
+            50% { transform: scale(1.1) translate(10px, -20px); }
+            75% { transform: scale(1.05) translate(30px, 10px); }
+            100% { transform: scale(1) translate(0px, 0px); } 
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
