@@ -2,18 +2,16 @@
 import React, { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 
-// --- 1. CRASH GUARD (Browser Safe) ---
+// --- 1. CRASH GUARD ---
 if (typeof window !== 'undefined') {
     window.global = window;
     window.process = window.process || {};
     window.process.env = window.process.env || { NODE_DEBUG: undefined };
-
     if (!window.process.nextTick) {
         window.process.nextTick = function (callback) { setTimeout(callback, 0); };
     }
     try { window.Buffer = window.Buffer || require("buffer").Buffer; } catch (e) { window.Buffer = {}; }
-
-    // Silence unnecessary logs
+    
     const originalConsoleError = console.error;
     console.error = (...args) => {
         if (typeof args[0] === 'string') {
@@ -37,7 +35,7 @@ const Icons = {
     CallEnd: () => <svg fill="white" height="24" viewBox="0 0 24 24" width="24"><path d="M12 9c-1.6 0-3.15.25-4.6.72-.81.26-1.38 1-1.38 1.87v2.23c0 .85.55 1.6 1.34 1.82.93.26 1.9.43 2.89.49.62.04 1.18-.32 1.41-.88l1.04-2.58c.17-.42.66-.63 1.09-.45.42.17.64.66.47 1.09l-1.04 2.58c-.53 1.33-1.85 2.18-3.28 2.09-1.42-.09-2.76-.36-4.04-.78-1.78-.58-3-2.25-3-4.13V11.6c0-1.95 1.27-3.61 3.09-4.2C8.5 6.42 10.22 6 12 6s3.5.42 5.09 1.4c1.82.59 3.09 2.25 3.09 4.2v1.52c0 1.88-1.22 3.55-3 4.13-1.28.42-2.62.69-4.04.78-1.43.09-2.75-.76-3.28-2.09l-1.04-2.58c-.17-.43.05-.92.47-1.09.43-.18.92.03 1.09.45l1.04 2.58c.23.56.79.92 1.41.88.99-.06 1.96-.23 2.89-.49.79-.22 1.34-.97 1.34-1.82v-2.23c0-.87-.57-1.61-1.38-1.87C15.15 9.25 13.6 9 12 9z" transform="scale(1.2) translate(-2, -2)" fill="#fff"/></svg>
 };
 
-// --- SELF-DESTRUCT VIDEO COMPONENT ---
+// --- VIDEO COMPONENT ---
 const Video = (props) => {
     const ref = useRef();
     const [isVisible, setIsVisible] = useState(true);
@@ -51,7 +49,6 @@ const Video = (props) => {
             if (peer._remoteStreams && peer._remoteStreams.length > 0) {
                 if (ref.current) ref.current.srcObject = peer._remoteStreams[0];
             }
-            // Auto Hide Logic
             peer.on("close", () => setIsVisible(false));
             peer.on("error", () => setIsVisible(false));
         }
@@ -85,7 +82,6 @@ function App() {
     const [bigMe, setBigMe] = useState(false);
     const [facingMode, setFacingMode] = useState("user");
     
-    // NEW: Splash Screen State
     const [showSplash, setShowSplash] = useState(true);
 
     const isLeaving = useRef(false);
@@ -94,14 +90,12 @@ function App() {
     const streamRef = useRef();
     const isOneOnOne = peers.length === 1;
 
-    // --- SPLASH SCREEN EFFECT ---
+    // --- SPLASH SCREEN LOGIC ---
     useEffect(() => {
-        // 2.5 Seconds ke baad Splash hata do
-        const timer = setTimeout(() => setShowSplash(false), 2500);
+        const timer = setTimeout(() => setShowSplash(false), 3000);
         return () => clearTimeout(timer);
     }, []);
 
-    // --- DRAG LOGIC ---
     const getDragHandlers = (isFloating) => {
         if(!isFloating) return {};
         return { onDragStart: handleDragStart, onDragMove: handleDragMove, onDragEnd: handleDragEnd };
@@ -170,17 +164,10 @@ function App() {
         });
 
         socket.on("user left", id => {
-            console.log("🔴 User Left:", id);
             const peerObj = peersRef.current.find(p => p.peerID === id);
             if (peerObj) { try { peerObj.destroy(); } catch(e){} }
-            
             peersRef.current = peersRef.current.filter(p => p.peerID !== id);
-            
-            // Force Update State
-            setPeers(prevPeers => {
-                const newPeers = prevPeers.filter(peer => peer.peerID !== id);
-                return [...newPeers];
-            });
+            setPeers(prevPeers => [...prevPeers.filter(peer => peer.peerID !== id)]);
         });
 
         return () => { 
@@ -293,13 +280,12 @@ function App() {
         return bigMe ? styles.oneOnOnePeer : { ...styles.floatingMe, left: pos.x, top: pos.y };
     };
 
-    // --- SPLASH SCREEN RENDER ---
+    // --- SPLASH SCREEN ---
     if (showSplash) {
         return (
             <div style={styles.splashContainer}>
                 <div style={styles.splashContent}>
-                    {/* Aapka Logo Yahan Aayega */}
-                    <img src="/az-chat-logo.png" alt="Logo" style={styles.splashLogo} />
+                    <img src="/logo.png" alt="Logo" style={styles.splashLogo} />
                     <h1 style={styles.splashTitle}>A_Z Video Chat</h1>
                     <div style={styles.loader}></div>
                 </div>
@@ -318,7 +304,7 @@ function App() {
 
             {!joined ? (
                 <div style={styles.loginContainer}>
-                    {/* BACKGROUND IMAGE FIX: Object Fit cover aur center alignment */}
+                    {/* BACKGROUND IMAGE WITH FLOAT ANIMATION */}
                     <img 
                         src="/background-collage.png" 
                         alt="Background Decoration"
@@ -388,75 +374,40 @@ const styles = {
     header: { padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#1a1a1a", borderBottom: "1px solid #333", height: "60px", zIndex: 20 },
     roomBadge: { background: "#333", color: "#fff", padding: "5px 12px", borderRadius: "20px", fontSize: "0.8rem" },
     
-    // --- LOGIN & BACKGROUND STYLES (Fixed) ---
     loginContainer: { 
-        flex: 1, 
-        display: "flex", 
-        justifyContent: "center", 
-        alignItems: "center", 
-        background: "#000",
-        position: "relative",
-        overflow: "hidden" // Scroll rokne ke liye
+        flex: 1, display: "flex", justifyContent: "center", alignItems: "center", 
+        background: "#000", position: "relative", overflow: "hidden" 
     },
+    // UPDATED BACKGROUND STYLE WITH ANIMATION
     backgroundImage: {
-        position: 'absolute',
-        top: 0, 
-        left: 0, 
-        width: '100%', 
-        height: '100%',
-        objectFit: 'cover',   // Pura cover karega
-        objectPosition: 'center', // Center mein rahega (Mobile pe katega nahi)
-        opacity: 0.3, 
-        zIndex: 1,
+        position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+        objectFit: 'cover', objectPosition: 'center', opacity: 0.3, zIndex: 1,
+        animation: 'floatBackground 20s ease-in-out infinite alternate', // Animation Added Here
     },
     loginCard: { 
-        background: "rgba(30, 30, 30, 0.9)", // Thoda transparent
-        backdropFilter: "blur(10px)", // Glass effect
-        padding: "30px", 
-        borderRadius: "15px", 
-        textAlign: "center", 
-        width: "90%", 
-        maxWidth: "400px", 
-        border: "1px solid #444",
-        zIndex: 2, 
-        position: "relative",
-        boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.37)"
+        background: "rgba(30, 30, 30, 0.9)", backdropFilter: "blur(10px)",
+        padding: "30px", borderRadius: "15px", textAlign: "center", 
+        width: "90%", maxWidth: "400px", border: "1px solid #444",
+        zIndex: 2, position: "relative", boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.37)"
     },
     
-    // --- SPLASH SCREEN STYLES (Professional) ---
     splashContainer: {
-        position: 'fixed',
-        top: 0, left: 0, width: '100%', height: '100%',
-        background: 'linear-gradient(135deg, #1a1a1a 0%, #000000 100%)', // Professional Dark Gradient
+        position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+        background: '#000000', 
         display: 'flex', justifyContent: 'center', alignItems: 'center',
         zIndex: 9999,
     },
-    splashContent: {
-        textAlign: 'center',
-        animation: 'fadeIn 1s ease-in-out'
-    },
+    splashContent: { textAlign: 'center', animation: 'fadeIn 0.5s ease-in-out' },
     splashLogo: {
-        width: '120px',
-        height: '120px',
-        borderRadius: '50%', // Circle Logo
-        boxShadow: '0 0 20px rgba(33, 150, 243, 0.5)', // Glowing Effect
-        marginBottom: '20px',
-        objectFit: 'cover'
+        width: '120px', height: '120px', borderRadius: '50%',
+        boxShadow: '0 0 20px rgba(33, 150, 243, 0.5)', marginBottom: '20px', objectFit: 'cover'
     },
     splashTitle: {
-        color: '#fff',
-        fontFamily: 'sans-serif',
-        fontSize: '24px',
-        letterSpacing: '2px',
-        marginBottom: '20px'
+        color: '#fff', fontFamily: 'sans-serif', fontSize: '24px', letterSpacing: '2px', marginBottom: '20px'
     },
     loader: {
-        width: '40px', height: '40px',
-        border: '4px solid rgba(255,255,255,0.1)',
-        borderLeftColor: '#2196F3', // Blue Spinner
-        borderRadius: '50%',
-        animation: 'spin 1s linear infinite',
-        margin: '0 auto'
+        width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.1)',
+        borderLeftColor: '#2196F3', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto'
     },
 
     input: { width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #333", background: "#2c2c2c", color: "white", fontSize: "16px", marginBottom: "20px", outline: "none", boxSizing: "border-box" },
@@ -473,10 +424,13 @@ const styles = {
     controlBtn: { width: "45px", height: "45px", borderRadius: "50%", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }
 };
 
-// Add Animation CSS Keyframes manually
 if (typeof document !== 'undefined') {
     const styleSheet = document.createElement("style");
     styleSheet.innerText = `
+        @keyframes floatBackground { 
+            0% { transform: scale(1); } 
+            100% { transform: scale(1.1); } 
+        }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
     `;
