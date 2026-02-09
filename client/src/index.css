@@ -11,14 +11,33 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
-/* Floating Animation */
+/* Floating Background Animation */
 @keyframes floatAnimation {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-60px); } /* Isko -20 se -60 kar diya (Zyada hilega) */
-  100% { transform: translateY(0px); }
+  0% {
+    transform: scale(1.1) translate(0px, 0px);
+  }
+  33% {
+    transform: scale(1.15) translate(-20px, 10px); /* Thoda left-down */
+  }
+  66% {
+    transform: scale(1.15) translate(15px, -15px); /* Thoda right-up */
+  }
+  100% {
+    transform: scale(1.1) translate(-10px, 20px); /* Wapis ghum ke */
+  }
 }
 
-.floating-img {
-  /* Agar speed bhi badhani hai to '6s' ko '4s' kar dein */
-  animation: floatAnimation 8s ease-in-out infinite; 
+.floating-bg {
+  /* Animation: Naam | Time | Speed | Infinite Loop */
+  animation: floatAnimation 18s ease-in-out infinite alternate;
+  
+  /* Mobile pe image kate na, uske liye fix */
+  position: absolute;
+  top: -10%;
+  left: -10%;
+  width: 120%;  /* Size bada rakha hai taki hile to kinare na dikhe */
+  height: 120%;
+  object-fit: cover;
+  opacity: 0.3;
+  z-index: 1;
 }
