@@ -2,34 +2,29 @@
 import React, { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 
-// --- 1. CRASH GUARD (UPDATED) ---
+// --- 1. CRASH GUARD (Browser Safe) ---
 if (typeof window !== 'undefined') {
     window.global = window;
-    
-    // Fix: Browser ko 'process' aur 'nextTick' sikha rahe hain
     window.process = window.process || {};
     window.process.env = window.process.env || { NODE_DEBUG: undefined };
-    
-    // Agar nextTick nahi hai, to setTimeout use karo (Ye line error hatayegi)
-    if (!window.process.nextTick) {
-        window.process.nextTick = function (callback) {
-            setTimeout(callback, 0);
-        };
-    }
 
-    try {
-        window.Buffer = window.Buffer || require("buffer").Buffer;
-    } catch (e) {
-        window.Buffer = {};
+    if (!window.process.nextTick) {
+        window.process.nextTick = function (callback) { setTimeout(callback, 0); };
     }
+    try { window.Buffer = window.Buffer || require("buffer").Buffer; } catch (e) { window.Buffer = {}; }
+
+    // Silence unnecessary logs
+    const originalConsoleError = console.error;
+    console.error = (...args) => {
+        if (typeof args[0] === 'string') {
+            if (args[0].includes("User-Initiated Abort")) return;
+            if (args[0].includes("_readableState")) return;
+        }
+        originalConsoleError.apply(console, args);
+    };
 }
 
-// --- 2. LOAD PEER ---
 const Peer = require("simple-peer");
-
-// ... baaki code same rahega ...
-
-// Render Link
 const socket = io.connect("https://az-chat.onrender.com");
 
 // --- ICONS ---
@@ -42,30 +37,34 @@ const Icons = {
     CallEnd: () => <svg fill="white" height="24" viewBox="0 0 24 24" width="24"><path d="M12 9c-1.6 0-3.15.25-4.6.72-.81.26-1.38 1-1.38 1.87v2.23c0 .85.55 1.6 1.34 1.82.93.26 1.9.43 2.89.49.62.04 1.18-.32 1.41-.88l1.04-2.58c.17-.42.66-.63 1.09-.45.42.17.64.66.47 1.09l-1.04 2.58c-.53 1.33-1.85 2.18-3.28 2.09-1.42-.09-2.76-.36-4.04-.78-1.78-.58-3-2.25-3-4.13V11.6c0-1.95 1.27-3.61 3.09-4.2C8.5 6.42 10.22 6 12 6s3.5.42 5.09 1.4c1.82.59 3.09 2.25 3.09 4.2v1.52c0 1.88-1.22 3.55-3 4.13-1.28.42-2.62.69-4.04.78-1.43.09-2.75-.76-3.28-2.09l-1.04-2.58c-.17-.43.05-.92.47-1.09.43-.18.92.03 1.09.45l1.04 2.58c.23.56.79.92 1.41.88.99-.06 1.96-.23 2.89-.49.79-.22 1.34-.97 1.34-1.82v-2.23c0-.87-.57-1.61-1.38-1.87C15.15 9.25 13.6 9 12 9z" transform="scale(1.2) translate(-2, -2)" fill="#fff"/></svg>
 };
 
-// --- VIDEO COMPONENT ---
+// --- SELF-DESTRUCT VIDEO COMPONENT ---
 const Video = (props) => {
     const ref = useRef();
+    const [isVisible, setIsVisible] = useState(true);
 
     useEffect(() => {
-        if (props.peer) {
-            props.peer.on("stream", stream => {
-                if (ref.current) ref.current.srcObject = stream;
-            });
-            if (props.peer._remoteStreams && props.peer._remoteStreams.length > 0) {
-                if (ref.current) ref.current.srcObject = props.peer._remoteStreams[0];
+        const peer = props.peer;
+        const handleStream = (stream) => { if (ref.current) ref.current.srcObject = stream; };
+        
+        if (peer) {
+            peer.on("stream", handleStream);
+            if (peer._remoteStreams && peer._remoteStreams.length > 0) {
+                if (ref.current) ref.current.srcObject = peer._remoteStreams[0];
             }
+            // Auto Hide Logic
+            peer.on("close", () => setIsVisible(false));
+            peer.on("error", () => setIsVisible(false));
         }
-    }, [props.peer]); 
+        return () => { if (peer) peer.off("stream", handleStream); };
+    }, [props.peer]);
+
+    if (!isVisible) return null;
 
     return (
         <div
             style={props.customStyle || styles.videoCard}
-            onMouseDown={props.onDragStart}
-            onMouseMove={props.onDragMove}
-            onMouseUp={props.onDragEnd}
-            onTouchStart={props.onDragStart}
-            onTouchMove={props.onDragMove}
-            onTouchEnd={props.onDragEnd}
+            onMouseDown={props.onDragStart} onMouseMove={props.onDragMove} onMouseUp={props.onDragEnd}
+            onTouchStart={props.onDragStart} onTouchMove={props.onDragMove} onTouchEnd={props.onDragEnd}
             onClick={props.onClick}
         >
             <video playsInline autoPlay ref={ref} style={styles.videoElement} />
@@ -78,23 +77,29 @@ function App() {
     const [peers, setPeers] = useState([]);
     const [roomID, setRoomID] = useState("");
     const [joined, setJoined] = useState(false);
-
     const [stream, setStream] = useState();
     const [micOn, setMicOn] = useState(true);
     const [cameraOn, setCameraOn] = useState(true);
-
     const [pos, setPos] = useState({ x: window.innerWidth - 130, y: window.innerHeight - 150 });
     const [isDragging, setIsDragging] = useState(false);
     const [bigMe, setBigMe] = useState(false);
     const [facingMode, setFacingMode] = useState("user");
+    
+    // NEW: Splash Screen State
+    const [showSplash, setShowSplash] = useState(true);
 
     const isLeaving = useRef(false);
-
     const userVideoRef = useRef();
-    const peersRef = useRef([]); // Direct Peer Store
+    const peersRef = useRef([]);
     const streamRef = useRef();
-
     const isOneOnOne = peers.length === 1;
+
+    // --- SPLASH SCREEN EFFECT ---
+    useEffect(() => {
+        // 2.5 Seconds ke baad Splash hata do
+        const timer = setTimeout(() => setShowSplash(false), 2500);
+        return () => clearTimeout(timer);
+    }, []);
 
     // --- DRAG LOGIC ---
     const getDragHandlers = (isFloating) => {
@@ -102,14 +107,11 @@ function App() {
         return { onDragStart: handleDragStart, onDragMove: handleDragMove, onDragEnd: handleDragEnd };
     };
 
-    // --- REFRESH PROTECTION ---
     useEffect(() => {
         const handleBeforeUnload = (event) => {
             if (isLeaving.current) return;
             if (joined) {
-                const message = "Are you sure you want to leave?";
-                event.returnValue = message;
-                return message;
+                event.returnValue = "Are you sure you want to leave?";
             }
         };
         window.addEventListener("beforeunload", handleBeforeUnload);
@@ -151,7 +153,6 @@ function App() {
         });
 
         socket.on("user joined", payload => {
-            // FIX 1: Duplicate User Check (Ye line duplicates rokti hai)
             const alreadyExists = peersRef.current.find(p => p.peerID === payload.callerID);
             if (alreadyExists) return;
 
@@ -169,22 +170,17 @@ function App() {
         });
 
         socket.on("user left", id => {
-            console.log("User Left ID:", id); // Debug Log
-
-            // FIX 2: Peer ko dhoondh ke destroy karo
+            console.log("🔴 User Left:", id);
             const peerObj = peersRef.current.find(p => p.peerID === id);
-            if (peerObj) {
-                try {
-                    peerObj.destroy();
-                } catch(e) { console.error("Peer destroy error:", e); }
-            }
-
-            // List ko filter karo
-            const filteredPeers = peersRef.current.filter(p => p.peerID !== id);
-            peersRef.current = filteredPeers;
-
-            // FIX 3: State update karke video hatao
-            setPeers(prevPeers => prevPeers.filter(peer => peer.peerID !== id));
+            if (peerObj) { try { peerObj.destroy(); } catch(e){} }
+            
+            peersRef.current = peersRef.current.filter(p => p.peerID !== id);
+            
+            // Force Update State
+            setPeers(prevPeers => {
+                const newPeers = prevPeers.filter(peer => peer.peerID !== id);
+                return [...newPeers];
+            });
         });
 
         return () => { 
@@ -297,6 +293,20 @@ function App() {
         return bigMe ? styles.oneOnOnePeer : { ...styles.floatingMe, left: pos.x, top: pos.y };
     };
 
+    // --- SPLASH SCREEN RENDER ---
+    if (showSplash) {
+        return (
+            <div style={styles.splashContainer}>
+                <div style={styles.splashContent}>
+                    {/* Aapka Logo Yahan Aayega */}
+                    <img src="/az-chat-logo.png" alt="Logo" style={styles.splashLogo} />
+                    <h1 style={styles.splashTitle}>A_Z Video Chat</h1>
+                    <div style={styles.loader}></div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div style={styles.container} onMouseMove={handleDragMove} onMouseUp={handleDragEnd}>
             <div style={styles.header}>
@@ -308,24 +318,18 @@ function App() {
 
             {!joined ? (
                 <div style={styles.loginContainer}>
+                    {/* BACKGROUND IMAGE FIX: Object Fit cover aur center alignment */}
                     <img 
                         src="/background-collage.png" 
                         alt="Background Decoration"
-                        style={{
-                            position: 'absolute',
-                            top: '-5%', left: '-5%', width: '110%', height: '110%',
-                            objectFit: 'cover', opacity: 0.3, zIndex: 1,
-                        }}
-                        className="floating-img" 
+                        style={styles.backgroundImage}
                     />
 
                     <div style={styles.loginCard}>
                         <h2 style={{ color: "white", marginTop: "0", marginBottom: "10px" }}>TAlk Now </h2>
-                        
                         <h4 style={{ color: "#4CAF50", marginTop: "0", marginBottom: "30px", fontWeight: "normal", fontSize: "18px" }}>
                             Enter Room Name To Talk
                         </h4>
-                        
                         <input
                             type="text"
                             name="room"
@@ -340,12 +344,10 @@ function App() {
                 <>
                     <div style={styles.gridContainer}>
                         {peers.map((peer) => {
-                            // Check: ID hona zaroori hai
                             if (!peer.peerID) return null; 
-
                             return (
                                 <Video 
-                                    key={peer.peerID} // FIX: Index nahi, ID use kiya hai
+                                    key={peer.peerID}
                                     peer={peer} 
                                     customStyle={getPeerStyle()} 
                                     onDragStart={getDragHandlers(isOneOnOne && bigMe).onDragStart}
@@ -370,18 +372,10 @@ function App() {
                     </div>
 
                     <div style={styles.controlsBar}>
-                        <button onClick={toggleMic} style={{ ...styles.controlBtn, background: micOn ? "#333" : "#ea4335" }}>
-                            {micOn ? <Icons.MicOn /> : <Icons.MicOff />}
-                        </button>
-                        <button onClick={toggleCamera} style={{ ...styles.controlBtn, background: cameraOn ? "#333" : "#ea4335" }}>
-                            {cameraOn ? <Icons.CamOn /> : <Icons.CamOff />}
-                        </button>
-                        <button onClick={switchCamera} style={{ ...styles.controlBtn, background: "#333" }}>
-                            <Icons.Flip />
-                        </button>
-                        <button onClick={leaveRoom} style={{ ...styles.controlBtn, background: "#ea4335", width: "60px" }}>
-                            <Icons.CallEnd />
-                        </button>
+                        <button onClick={toggleMic} style={{ ...styles.controlBtn, background: micOn ? "#333" : "#ea4335" }}>{micOn ? <Icons.MicOn /> : <Icons.MicOff />}</button>
+                        <button onClick={toggleCamera} style={{ ...styles.controlBtn, background: cameraOn ? "#333" : "#ea4335" }}>{cameraOn ? <Icons.CamOn /> : <Icons.CamOff />}</button>
+                        <button onClick={switchCamera} style={{ ...styles.controlBtn, background: "#333" }}><Icons.Flip /></button>
+                        <button onClick={leaveRoom} style={{ ...styles.controlBtn, background: "#ea4335", width: "60px" }}><Icons.CallEnd /></button>
                     </div>
                 </>
             )}
@@ -393,6 +387,8 @@ const styles = {
     container: { background: "#121212", minHeight: "100vh", display: "flex", flexDirection: "column", fontFamily: "sans-serif", overflow: "hidden" },
     header: { padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#1a1a1a", borderBottom: "1px solid #333", height: "60px", zIndex: 20 },
     roomBadge: { background: "#333", color: "#fff", padding: "5px 12px", borderRadius: "20px", fontSize: "0.8rem" },
+    
+    // --- LOGIN & BACKGROUND STYLES (Fixed) ---
     loginContainer: { 
         flex: 1, 
         display: "flex", 
@@ -400,45 +396,74 @@ const styles = {
         alignItems: "center", 
         background: "#000",
         position: "relative",
-        overflow: "hidden"
+        overflow: "hidden" // Scroll rokne ke liye
+    },
+    backgroundImage: {
+        position: 'absolute',
+        top: 0, 
+        left: 0, 
+        width: '100%', 
+        height: '100%',
+        objectFit: 'cover',   // Pura cover karega
+        objectPosition: 'center', // Center mein rahega (Mobile pe katega nahi)
+        opacity: 0.3, 
+        zIndex: 1,
     },
     loginCard: { 
-        background: "#1e1e1e", 
+        background: "rgba(30, 30, 30, 0.9)", // Thoda transparent
+        backdropFilter: "blur(10px)", // Glass effect
         padding: "30px", 
         borderRadius: "15px", 
         textAlign: "center", 
         width: "90%", 
         maxWidth: "400px", 
-        border: "1px solid #333",
+        border: "1px solid #444",
         zIndex: 2, 
-        position: "relative"
+        position: "relative",
+        boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.37)"
     },
+    
+    // --- SPLASH SCREEN STYLES (Professional) ---
+    splashContainer: {
+        position: 'fixed',
+        top: 0, left: 0, width: '100%', height: '100%',
+        background: 'linear-gradient(135deg, #1a1a1a 0%, #000000 100%)', // Professional Dark Gradient
+        display: 'flex', justifyContent: 'center', alignItems: 'center',
+        zIndex: 9999,
+    },
+    splashContent: {
+        textAlign: 'center',
+        animation: 'fadeIn 1s ease-in-out'
+    },
+    splashLogo: {
+        width: '120px',
+        height: '120px',
+        borderRadius: '50%', // Circle Logo
+        boxShadow: '0 0 20px rgba(33, 150, 243, 0.5)', // Glowing Effect
+        marginBottom: '20px',
+        objectFit: 'cover'
+    },
+    splashTitle: {
+        color: '#fff',
+        fontFamily: 'sans-serif',
+        fontSize: '24px',
+        letterSpacing: '2px',
+        marginBottom: '20px'
+    },
+    loader: {
+        width: '40px', height: '40px',
+        border: '4px solid rgba(255,255,255,0.1)',
+        borderLeftColor: '#2196F3', // Blue Spinner
+        borderRadius: '50%',
+        animation: 'spin 1s linear infinite',
+        margin: '0 auto'
+    },
+
     input: { width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #333", background: "#2c2c2c", color: "white", fontSize: "16px", marginBottom: "20px", outline: "none", boxSizing: "border-box" },
-    joinBtn: { width: "100%", padding: "12px", borderRadius: "8px", border: "none", background: "#2196F3", color: "white", fontSize: "16px", cursor: "pointer" },
-    gridContainer: { 
-        flex: 1, 
-        display: "flex", 
-        flexWrap: "wrap", 
-        justifyContent: "center", 
-        alignItems: "center", 
-        gap: "10px", 
-        padding: "10px", 
-        paddingBottom: "100px", 
-        overflowY: "auto", 
-        position: "relative" 
-    },
-    videoCard: { 
-        position: "relative", 
-        background: "#000", 
-        borderRadius: "12px", 
-        overflow: "hidden", 
-        border: "1px solid #333", 
-        flex: "1 1 40%", 
-        minWidth: "140px", 
-        maxWidth: "600px", 
-        aspectRatio: "1.33", 
-        maxHeight: "45vh"
-    },
+    joinBtn: { width: "100%", padding: "12px", borderRadius: "8px", border: "none", background: "linear-gradient(90deg, #2196F3, #21CBF3)", color: "white", fontSize: "16px", cursor: "pointer", fontWeight: "bold" },
+    
+    gridContainer: { flex: 1, display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: "10px", padding: "10px", paddingBottom: "100px", overflowY: "auto", position: "relative" },
+    videoCard: { position: "relative", background: "#000", borderRadius: "12px", overflow: "hidden", border: "1px solid #333", flex: "1 1 40%", minWidth: "140px", maxWidth: "600px", aspectRatio: "1.33", maxHeight: "45vh" },
     oneOnOnePeer: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 1, background: "#000", display: "flex", alignItems: "center", justifyContent: "center" },
     floatingMe: { position: "fixed", width: "120px", height: "160px", borderRadius: "10px", overflow: "hidden", border: "2px solid #fff", boxShadow: "0 5px 15px rgba(0,0,0,0.5)", zIndex: 50, background: "#000", cursor: "grab", touchAction: "none" },
     videoElement: { width: "100%", height: "100%", objectFit: "contain", transform: "scaleX(-1)", background: "#000" },
@@ -447,5 +472,15 @@ const styles = {
     controlsBar: { position: "fixed", bottom: "20px", left: "50%", transform: "translateX(-50%)", background: "rgba(40, 40, 40, 0.9)", padding: "10px 20px", borderRadius: "50px", display: "flex", gap: "15px", zIndex: 100, maxWidth: "95%", overflowX: "auto" },
     controlBtn: { width: "45px", height: "45px", borderRadius: "50%", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }
 };
+
+// Add Animation CSS Keyframes manually
+if (typeof document !== 'undefined') {
+    const styleSheet = document.createElement("style");
+    styleSheet.innerText = `
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+    `;
+    document.head.appendChild(styleSheet);
+}
 
 export default App;
