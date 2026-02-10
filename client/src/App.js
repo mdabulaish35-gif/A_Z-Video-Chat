@@ -191,6 +191,7 @@ function App() {
     const [peers, setPeers] = useState([]);
     const [roomID, setRoomID] = useState("");
     const [joined, setJoined] = useState(false);
+    const socketRef = useRef(socket);
     const [stream, setStream] = useState();
     const [micOn, setMicOn] = useState(true);
     const [cameraOn, setCameraOn] = useState(true);
