@@ -2,30 +2,21 @@
 import React, { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 
+const SERVER_URL = "https://az-chat.onrender.com";
+
 // --- 1. CRASH GUARD ---
 if (typeof window !== 'undefined') {
     window.global = window;
     window.process = window.process || {};
     window.process.env = window.process.env || { NODE_DEBUG: undefined };
-    if (!window.process.nextTick) {
-        window.process.nextTick = function (callback) { setTimeout(callback, 0); };
-    }
+    if (!window.process.nextTick) window.process.nextTick = (cb) => setTimeout(cb, 0);
     try { window.Buffer = window.Buffer || require("buffer").Buffer; } catch (e) { window.Buffer = {}; }
-    
-    const originalConsoleError = console.error;
-    console.error = (...args) => {
-        if (typeof args[0] === 'string') {
-            if (args[0].includes("User-Initiated Abort")) return;
-            if (args[0].includes("_readableState")) return;
-        }
-        originalConsoleError.apply(console, args);
-    };
 }
 
 const Peer = require("simple-peer");
 const socket = io.connect("https://az-chat.onrender.com");
 
-// --- ICONS ---
+// --- ICONS (Same as before) ---
 const Icons = {
     MicOn: () => <svg fill="white" height="24" viewBox="0 0 24 24" width="24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.66 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>,
     MicOff: () => <svg fill="white" height="24" viewBox="0 0 24 24" width="24"><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02 5.02L12 18.06l-2.98-2.04C7.89 15.26 7 13.91 7 12.33v-.17L4.13 9.29L2.86 10.56 12 19.7 21.14 10.56 19.87 9.29 16.29 12.87v.46c0 .72-.19 1.4-.53 2.02l.51.51c.32-.57.53-1.22.53-1.92v-2.12l-1.82 1.8zM12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.66 9 5v6c0 .55.15 1.06.41 1.51l2.58 2.58c.01-.03.01-.06.01-.09z"/></svg>,
@@ -35,7 +26,6 @@ const Icons = {
     CallEnd: () => <svg fill="white" height="24" viewBox="0 0 24 24" width="24"><path d="M12 9c-1.6 0-3.15.25-4.6.72-.81.26-1.38 1-1.38 1.87v2.23c0 .85.55 1.6 1.34 1.82.93.26 1.9.43 2.89.49.62.04 1.18-.32 1.41-.88l1.04-2.58c.17-.42.66-.63 1.09-.45.42.17.64.66.47 1.09l-1.04 2.58c-.53 1.33-1.85 2.18-3.28 2.09-1.42-.09-2.76-.36-4.04-.78-1.78-.58-3-2.25-3-4.13V11.6c0-1.95 1.27-3.61 3.09-4.2C8.5 6.42 10.22 6 12 6s3.5.42 5.09 1.4c1.82.59 3.09 2.25 3.09 4.2v1.52c0 1.88-1.22 3.55-3 4.13-1.28.42-2.62.69-4.04.78-1.43.09-2.75-.76-3.28-2.09l-1.04-2.58c-.17-.43.05-.92.47-1.09.43-.18.92.03 1.09.45l1.04 2.58c.23.56.79.92 1.41.88.99-.06 1.96-.23 2.89-.49.79-.22 1.34-.97 1.34-1.82v-2.23c0-.87-.57-1.61-1.38-1.87C15.15 9.25 13.6 9 12 9z" transform="scale(1.2) translate(-2, -2)" fill="#fff"/></svg>
 };
 
-// --- VIDEO COMPONENT (Self-Destruct) ---
 const Video = (props) => {
     const ref = useRef();
     const [isVisible, setIsVisible] = useState(true);
@@ -49,7 +39,6 @@ const Video = (props) => {
             if (peer._remoteStreams && peer._remoteStreams.length > 0) {
                 if (ref.current) ref.current.srcObject = peer._remoteStreams[0];
             }
-            // Auto Hide Logic
             peer.on("close", () => { setIsVisible(false); });
             peer.on("error", () => { setIsVisible(false); });
         }
@@ -71,6 +60,76 @@ const Video = (props) => {
     );
 }
 
+// --- MONGODB AUTH SCREEN ---
+const AuthScreen = ({ onLogin }) => {
+    const [isLogin, setIsLogin] = useState(true);
+    const [formData, setFormData] = useState({ name: "", email: "", password: "" });
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
+
+    const handleChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+        setError("");
+    };
+
+    const handleSubmit = async () => {
+        if (!formData.email || !formData.password) {
+            setError("Please fill all details");
+            return;
+        }
+        setLoading(true);
+
+        const endpoint = isLogin ? "/login" : "/signup";
+        
+        try {
+            const response = await fetch(`${SERVER_URL}${endpoint}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(formData)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                onLogin(data.user); // Server se user data mila
+            } else {
+                setError(data.message || "Something went wrong");
+            }
+        } catch (err) {
+            setError("Server not connected. Please start server.js");
+            console.error(err);
+        }
+        setLoading(false);
+    };
+
+    return (
+        <div style={styles.loginCard}>
+            <h2 style={{ color: "white", marginTop: "0", marginBottom: "10px" }}>
+                {isLogin ? "Welcome Back" : "Create Account"}
+            </h2>
+            <h4 style={{ color: "#4CAF50", marginTop: "0", marginBottom: "30px", fontWeight: "normal", fontSize: "16px" }}>
+                {isLogin ? "Login to A_Z Video Chat" : "Sign up to get started"}
+            </h4>
+
+            {!isLogin && (
+                <input type="text" name="name" placeholder="Full Name" onChange={handleChange} style={styles.input} />
+            )}
+            <input type="email" name="email" placeholder="Email Address" onChange={handleChange} style={styles.input} />
+            <input type="password" name="password" placeholder="Password" onChange={handleChange} style={styles.input} />
+            
+            {error && <p style={{ color: "#ff4444", fontSize: "14px", marginTop: "-10px" }}>{error}</p>}
+
+            <button onClick={handleSubmit} style={styles.joinBtn} disabled={loading}>
+                {loading ? "Please wait..." : (isLogin ? "Login" : "Sign Up")}
+            </button>
+
+            <p style={{ color: "#aaa", fontSize: "14px", marginTop: "20px", cursor: "pointer" }} onClick={() => setIsLogin(!isLogin)}>
+                {isLogin ? "New user? Create Account" : "Already have account? Login"}
+            </p>
+        </div>
+    );
+};
+
 function App() {
     const [peers, setPeers] = useState([]);
     const [roomID, setRoomID] = useState("");
@@ -83,8 +142,9 @@ function App() {
     const [bigMe, setBigMe] = useState(false);
     const [facingMode, setFacingMode] = useState("user");
     
-    // Splash Screen State
+    // STATES
     const [showSplash, setShowSplash] = useState(true);
+    const [currentUser, setCurrentUser] = useState(null);
 
     const isLeaving = useRef(false);
     const userVideoRef = useRef();
@@ -92,13 +152,30 @@ function App() {
     const streamRef = useRef();
     const isOneOnOne = peers.length === 1;
 
-    // --- SPLASH SCREEN EFFECT ---
     useEffect(() => {
-        // 3 seconds ke baad humara splash hatega
-        // Kyunki manifest bhi black hai, user ko lagega ek hi splash hai
         const timer = setTimeout(() => setShowSplash(false), 3000); 
         return () => clearTimeout(timer);
     }, []);
+
+    // Check Local Storage for Auto-Login
+    useEffect(() => {
+        const savedUser = localStorage.getItem("az_chat_user_mongo");
+        if(savedUser) {
+            setCurrentUser(JSON.parse(savedUser));
+        }
+    }, []);
+
+    const handleLoginSuccess = (user) => {
+        setCurrentUser(user);
+        localStorage.setItem("az_chat_user_mongo", JSON.stringify(user));
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem("az_chat_user_mongo");
+        setCurrentUser(null);
+        setJoined(false);
+        window.location.reload();
+    };
 
     const getDragHandlers = (isFloating) => {
         if(!isFloating) return {};
@@ -167,24 +244,11 @@ function App() {
             if (item) item.signal(payload.signal);
         });
 
-        // --- FIXED USER LEFT LOGIC ---
         socket.on("user left", id => {
-            console.log("🔴 User Left ID:", id);
-            
-            // 1. Connection todna
             const peerObj = peersRef.current.find(p => p.peerID === id);
-            if (peerObj) {
-                try { peerObj.destroy(); } catch(e){}
-            }
-
-            // 2. Ref List Update
+            if (peerObj) { try { peerObj.destroy(); } catch(e){} }
             peersRef.current = peersRef.current.filter(p => p.peerID !== id);
-
-            // 3. Force Screen Update
-            setPeers(prevPeers => {
-                const newPeers = prevPeers.filter(peer => peer.peerID !== id);
-                return [...newPeers];
-            });
+            setPeers(prevPeers => [...prevPeers.filter(peer => peer.peerID !== id)]);
         });
 
         return () => { 
@@ -297,7 +361,8 @@ function App() {
         return bigMe ? styles.oneOnOnePeer : { ...styles.floatingMe, left: pos.x, top: pos.y };
     };
 
-    // --- SPLASH SCREEN RENDER ---
+    // --- RENDER ---
+
     if (showSplash) {
         return (
             <div style={styles.splashContainer}>
@@ -316,32 +381,40 @@ function App() {
                 <h2 style={{ margin: 0, color: "#fff", display: "flex", alignItems: "center", gap: "10px", fontSize: "1.2rem" }}>
                     📹 <span style={{ fontWeight: 300 }}>A_Z</span><span style={{ fontWeight: "bold" }}> Video Chat</span>
                 </h2>
+                {currentUser && !joined && (
+                    <button onClick={handleLogout} style={{...styles.roomBadge, border:"none", cursor:"pointer", background: "#ea4335"}}>Logout</button>
+                )}
                 {joined && <div style={styles.roomBadge}>Room: {roomID}</div>}
             </div>
 
             {!joined ? (
                 <div style={styles.loginContainer}>
-                    {/* ENHANCED FLOATING BACKGROUND (Auto Animation via JS injected CSS) */}
                     <img 
                         src="/background-collage.png" 
                         alt="Background Decoration"
                         style={styles.backgroundImage}
                     />
 
-                    <div style={styles.loginCard}>
-                        <h2 style={{ color: "white", marginTop: "0", marginBottom: "10px" }}>TAlk Now </h2>
-                        <h4 style={{ color: "#4CAF50", marginTop: "0", marginBottom: "30px", fontWeight: "normal", fontSize: "18px" }}>
-                            Enter Room Name To Talk
-                        </h4>
-                        <input
-                            type="text"
-                            name="room"
-                            placeholder="Enter Room Name Here"
-                            onChange={(e) => setRoomID(e.target.value)}
-                            style={styles.input}
-                        />
-                        <button onClick={joinRoom} style={styles.joinBtn}>Join Now</button>
-                    </div>
+                    {!currentUser ? (
+                        <AuthScreen onLogin={handleLoginSuccess} />
+                    ) : (
+                        <div style={styles.loginCard}>
+                            <h2 style={{ color: "white", marginTop: "0", marginBottom: "10px" }}>
+                                Hi, {currentUser.name}! 
+                            </h2>
+                            <h4 style={{ color: "#4CAF50", marginTop: "0", marginBottom: "30px", fontWeight: "normal", fontSize: "18px" }}>
+                                Enter Room Name To Talk
+                            </h4>
+                            <input
+                                type="text"
+                                name="room"
+                                placeholder="Enter Room Name Here"
+                                onChange={(e) => setRoomID(e.target.value)}
+                                style={styles.input}
+                            />
+                            <button onClick={joinRoom} style={styles.joinBtn}>Join Now</button>
+                        </div>
+                    )}
                 </div>
             ) : (
                 <>
@@ -350,7 +423,7 @@ function App() {
                             if (!peer.peerID) return null; 
                             return (
                                 <Video 
-                                    key={peer.peerID} // KEY IS IMPORTANT FOR REMOVAL
+                                    key={peer.peerID} 
                                     peer={peer} 
                                     customStyle={getPeerStyle()} 
                                     onDragStart={getDragHandlers(isOneOnOne && bigMe).onDragStart}
@@ -369,7 +442,7 @@ function App() {
                             onTouchEnd={getDragHandlers(!bigMe).onDragEnd}
                         >
                             <video muted ref={userVideoRef} autoPlay playsInline style={styles.videoElement} />
-                            {!isOneOnOne && <div style={styles.nameTag}>You</div>}
+                            {!isOneOnOne && <div style={styles.nameTag}>You ({currentUser.name})</div>}
                             <div style={{ ...styles.statusDot, background: micOn ? "#4CAF50" : "#f44336" }}></div>
                         </div>
                     </div>
@@ -395,10 +468,9 @@ const styles = {
         flex: 1, display: "flex", justifyContent: "center", alignItems: "center", 
         background: "#000", position: "relative", overflow: "hidden" 
     },
-    // --- HEAVY FLOATING BACKGROUND STYLE ---
     backgroundImage: {
         position: 'absolute', 
-        top: '-15%', left: '-15%', width: '130%', height: '130%', // Size badhaya taaki edge na dikhe
+        top: '-15%', left: '-15%', width: '130%', height: '130%', 
         objectFit: 'cover', opacity: 0.3, zIndex: 1,
         animation: 'floatAnimation 18s ease-in-out infinite alternate', 
     },
@@ -409,10 +481,9 @@ const styles = {
         zIndex: 2, position: "relative", boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.37)"
     },
     
-    // --- SPLASH SCREEN ---
     splashContainer: {
         position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-        background: '#000000', // Pura Black to Match Manifest
+        background: '#000000',
         display: 'flex', justifyContent: 'center', alignItems: 'center',
         zIndex: 9999,
     },
@@ -443,7 +514,6 @@ const styles = {
     controlBtn: { width: "45px", height: "45px", borderRadius: "50%", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }
 };
 
-// --- ANIMATION INJECTION (Automatic) ---
 if (typeof document !== 'undefined') {
     const styleSheet = document.createElement("style");
     styleSheet.innerText = `
