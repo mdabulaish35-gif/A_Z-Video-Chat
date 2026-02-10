@@ -18,6 +18,7 @@ const socket = io.connect("https://az-chat.onrender.com");
 
 // --- ICONS (Same as before) ---
 const Icons = {
+    Chat: () => <svg fill="white" height="24" viewBox="0 0 24 24" width="24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>,
     ScreenShare: () => <svg fill="white" height="24" viewBox="0 0 24 24" width="24"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.11-.9-2-2-2H4c-1.11 0-2 .89-2 2v10c0 1.1.89 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>,
     MicOn: () => <svg fill="white" height="24" viewBox="0 0 24 24" width="24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.66 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>,
     MicOff: () => <svg fill="white" height="24" viewBox="0 0 24 24" width="24"><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02 5.02L12 18.06l-2.98-2.04C7.89 15.26 7 13.91 7 12.33v-.17L4.13 9.29L2.86 10.56 12 19.7 21.14 10.56 19.87 9.29 16.29 12.87v.46c0 .72-.19 1.4-.53 2.02l.51.51c.32-.57.53-1.22.53-1.92v-2.12l-1.82 1.8zM12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.66 9 5v6c0 .55.15 1.06.41 1.51l2.58 2.58c.01-.03.01-.06.01-.09z"/></svg>,
@@ -382,6 +383,15 @@ function App() {
         }
     }
 
+    // --- LISTEN FOR MESSAGES ---
+    useEffect(() => {
+        if (!socketRef.current) return;
+        
+        socketRef.current.on("receive message", (data) => {
+            setMessages((oldMsgs) => [...oldMsgs, data]);
+        });
+    }, []);
+
     const toggleMic = () => {
         if (stream) {
             const audioTrack = stream.getAudioTracks()[0];
@@ -401,6 +411,27 @@ function App() {
             }
         }
     };
+
+    // --- SEND MESSAGE FUNCTION ---
+    const sendMessage = (e) => {
+        e.preventDefault(); // Page reload mat hone do
+        if (message.trim() === "") return;
+
+        const msgData = {
+            roomID,
+            user: currentUser.name,
+            text: message,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+
+        socketRef.current.emit("send message", msgData);
+        setMessage(""); // Input khali kar do
+    };
+
+    // --- CHAT STATES ---
+    const [showChat, setShowChat] = useState(false); // Chat box dikhana hai ya nahi
+    const [message, setMessage] = useState("");      // Jo type kar rahe hain
+    const [messages, setMessages] = useState([]);    // Pura chat history
 
     // --- UPDATED SCREEN SHARE (Mobile Support + No Mirror Fix) ---
     const shareScreen = async () => {
@@ -547,18 +578,71 @@ function App() {
                         </div>
                     </div>
 
+                    {/* --- CONTROLS BAR (Updated with Chat Button) --- */}
                     <div style={styles.controlsBar}>
-                        <button onClick={toggleMic} style={{ ...styles.controlBtn, background: micOn ? "#333" : "#ea4335" }}>{micOn ? <Icons.MicOn /> : <Icons.MicOff />}</button>
-                        <button onClick={toggleCamera} style={{ ...styles.controlBtn, background: cameraOn ? "#333" : "#ea4335" }}>{cameraOn ? <Icons.CamOn /> : <Icons.CamOff />}</button>
-    
-                        {/* --- NEW SCREEN SHARE BUTTON --- */}
+                        <button onClick={toggleMic} style={{ ...styles.controlBtn, background: micOn ? "#333" : "#ea4335" }}>
+                            {micOn ? <Icons.MicOn /> : <Icons.MicOff />}
+                        </button>
+                        
+                        <button onClick={toggleCamera} style={{ ...styles.controlBtn, background: cameraOn ? "#333" : "#ea4335" }}>
+                            {cameraOn ? <Icons.CamOn /> : <Icons.CamOff />}
+                        </button>
+                        
                         <button onClick={shareScreen} style={{ ...styles.controlBtn, background: "#333" }}>
-                        <Icons.ScreenShare />
+                            <Icons.ScreenShare />
+                        </button>
+
+                        {/* 👇👇 NAYA CHAT BUTTON YAHAN HAI 👇👇 */}
+                        <button onClick={() => setShowChat(!showChat)} style={{ ...styles.controlBtn, background: showChat ? "#4CAF50" : "#333" }}>
+                            <Icons.Chat />
                         </button>
     
-                        <button onClick={switchCamera} style={{ ...styles.controlBtn, background: "#333" }}><Icons.Flip /></button>
-                        <button onClick={leaveRoom} style={{ ...styles.controlBtn, background: "#ea4335", width: "60px" }}><Icons.CallEnd /></button>
-                    </div>
+                        <button onClick={switchCamera} style={{ ...styles.controlBtn, background: "#333" }}>
+                            <Icons.Flip />
+                        </button>
+                        
+                        <button onClick={leaveRoom} style={{ ...styles.controlBtn, background: "#ea4335", width: "60px" }}>
+                            <Icons.CallEnd />
+                        </button>
+                    </div> 
+                    
+                    {/* 👆 Yahan Controls wala </div> khatam hua */}
+
+
+                    {/* 👇👇 STEP E: CHAT BOX UI (Iske Neeche Paste Hua) 👇👇 */}
+                    {showChat && (
+                        <div style={styles.chatContainer}>
+                            <div style={styles.chatHeader}>
+                                <h4 style={{margin: 0, color: 'white'}}>Chat</h4>
+                                <button onClick={() => setShowChat(false)} style={styles.closeBtn}>×</button>
+                            </div>
+                            
+                            <div style={styles.chatMessages}>
+                                {messages.map((msg, index) => (
+                                    <div key={index} style={{
+                                        ...styles.messageBubble,
+                                        alignSelf: msg.user === (formData.name || "User") ? "flex-end" : "flex-start",
+                                        background: msg.user === (formData.name || "User") ? "#4CAF50" : "#333"
+                                    }}>
+                                        <span style={styles.msgUser}>{msg.user}</span>
+                                        <p style={{ margin: "5px 0" }}>{msg.text}</p>
+                                        <span style={styles.msgTime}>{msg.time}</span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <form onSubmit={sendMessage} style={styles.chatInputArea}>
+                                <input 
+                                    type="text" 
+                                    placeholder="Type a message..." 
+                                    value={message} 
+                                    onChange={(e) => setMessage(e.target.value)} 
+                                    style={styles.chatInput}
+                                />
+                                <button type="submit" style={styles.sendBtn}>➤</button>
+                            </form>
+                        </div>
+                    )}
                 </>
             )}
         </div>
@@ -613,11 +697,42 @@ const styles = {
     videoCard: { position: "relative", background: "#000", borderRadius: "12px", overflow: "hidden", border: "1px solid #333", flex: "1 1 40%", minWidth: "140px", maxWidth: "600px", aspectRatio: "1.33", maxHeight: "45vh" },
     oneOnOnePeer: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 1, background: "#000", display: "flex", alignItems: "center", justifyContent: "center" },
     floatingMe: { position: "fixed", width: "120px", height: "160px", borderRadius: "10px", overflow: "hidden", border: "2px solid #fff", boxShadow: "0 5px 15px rgba(0,0,0,0.5)", zIndex: 50, background: "#000", cursor: "grab", touchAction: "none" },
-    videoElement: { width: "100%", height: "100%", objectFit: "contain",background: "#000" },
+    videoElement: { width: "100%", height: "100%", objectFit: "contain", background: "#000" },
     nameTag: { position: "absolute", bottom: "10px", left: "10px", background: "rgba(0,0,0,0.6)", color: "white", padding: "4px 8px", borderRadius: "4px", fontSize: "12px" },
     statusDot: { position: "absolute", top: "10px", right: "10px", width: "8px", height: "8px", borderRadius: "50%" },
     controlsBar: { position: "fixed", bottom: "20px", left: "50%", transform: "translateX(-50%)", background: "rgba(40, 40, 40, 0.9)", padding: "10px 20px", borderRadius: "50px", display: "flex", gap: "15px", zIndex: 100, maxWidth: "95%", overflowX: "auto" },
-    controlBtn: { width: "45px", height: "45px", borderRadius: "50%", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }
+    
+    // Yahan Comma lagana zaroori hai 👇
+    controlBtn: { width: "45px", height: "45px", borderRadius: "50%", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+
+    // --- NEW CHAT STYLES (Added Here) ---
+    chatContainer: {
+        position: "fixed", right: "20px", bottom: "100px", width: "300px", height: "400px",
+        background: "#1e1e1e", borderRadius: "10px", boxShadow: "0px 0px 15px rgba(0,0,0,0.5)",
+        display: "flex", flexDirection: "column", overflow: "hidden", zIndex: 100, border: "1px solid #333"
+    },
+    chatHeader: {
+        background: "#252525", padding: "10px", display: "flex", justifyContent: "space-between",
+        alignItems: "center", borderBottom: "1px solid #333", color: "white"
+    },
+    closeBtn: { background: "none", border: "none", color: "white", fontSize: "20px", cursor: "pointer" },
+    chatMessages: {
+        flex: 1, padding: "10px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px"
+    },
+    messageBubble: {
+        maxWidth: "80%", padding: "8px 12px", borderRadius: "10px", color: "white", fontSize: "14px", wordWrap: "break-word"
+    },
+    msgUser: { fontSize: "10px", color: "#ddd", fontWeight: "bold", display: "block", marginBottom: "2px" },
+    msgTime: { fontSize: "10px", color: "#ccc", display: "block", textAlign: "right", marginTop: "4px" },
+    chatInputArea: { display: "flex", padding: "10px", background: "#252525", borderTop: "1px solid #333" },
+    chatInput: {
+        flex: 1, padding: "10px", borderRadius: "20px", border: "none", outline: "none", marginRight: "8px",
+        background: "#333", color: "white"
+    },
+    sendBtn: {
+        background: "#4CAF50", border: "none", color: "white", padding: "10px 15px", borderRadius: "50%",
+        cursor: "pointer", fontSize: "16px"
+    }
 };
 
 if (typeof document !== 'undefined') {
