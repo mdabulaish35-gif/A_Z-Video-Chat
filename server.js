@@ -19,13 +19,26 @@ mongoose.connect(MONGO_URI)
 .then(() => console.log("✅ MongoDB Connected"))
 .catch(err => console.log("❌ MongoDB Error:", err));
 
-// --- 3. USER SCHEMA (Data Model) ---
-const UserSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true }
+// --- 1. USER SCHEMA UPDATE (Strict Validation) ---
+const userSchema = new mongoose.Schema({
+    name: { 
+        type: String, 
+        required: [true, "Name is required"] 
+    },
+    email: { 
+        type: String, 
+        required: [true, "Email is required"], 
+        unique: true, 
+        // Ye REGEX check karega ki email asli hai ya nahi (e.g. @ aur .com hai ya nahi)
+        match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email address']
+    },
+    password: { 
+        type: String, 
+        required: [true, "Password is required"],
+        // Password kam se kam 6 characters ka hona chahiye
+        minlength: [6, "Password must be at least 6 characters long"] 
+    }
 });
-const User = mongoose.model('User', UserSchema);
 
 // --- 4. AUTH ROUTES (Login/Signup API) ---
 

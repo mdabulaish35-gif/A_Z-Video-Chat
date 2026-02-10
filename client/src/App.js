@@ -87,12 +87,71 @@ const AuthScreen = ({ onLogin }) => {
         setShowPassword(!showPassword);
     };
 
+    // --- UPDATED VALIDATION LOGIC ---
     const handleSubmit = async () => {
-        // Validation Logic
+        // 1. Check Empty Fields
         if (!formData.email || !formData.password) {
             setError("Please fill all details");
             return;
         }
+
+        // 2. Signup Specific Validations
+        if (!isLogin) {
+            if (!formData.name) {
+                setError("Name is required");
+                return;
+            }
+            
+            // EMAIL VALIDATION (Regex)
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(formData.email)) {
+                setError("Invalid Email Format! (e.g., user@gmail.com)");
+                return;
+            }
+
+            // PASSWORD STRENGTH CHECK
+            if (formData.password.length < 6) {
+                setError("Password is too weak! Must be at least 6 characters.");
+                return;
+            }
+
+            if (formData.password !== formData.confirmPassword) {
+                setError("Passwords do not match!");
+                return;
+            }
+        }
+
+        setLoading(true);
+
+        // ... Baki purana fetch/login code yahan aayega ...
+        const endpoint = isLogin ? "/login" : "/signup";
+        try {
+            const response = await fetch(`${SERVER_URL}${endpoint}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(formData)
+            });
+            const data = await response.json();
+            
+            if (response.ok) {
+                onLogin(data.user);
+            } else {
+                // Backend ka error dikhao (Jo humne server.js me set kiya)
+                // Agar Mongoose ka validation fail hua to wo error yahan aayega
+                if (data.error && data.error.includes("User validation failed")) {
+                     if(data.error.includes("email")) setError("Please enter a valid email address");
+                     else if(data.error.includes("password")) setError("Password must be at least 6 characters");
+                     else setError(data.message || "Invalid Data");
+                } else {
+                    setError(data.message || "Something went wrong");
+                }
+            }
+        } catch (err) {
+            setError("Server connection failed.");
+            console.error(err);
+        }
+        setLoading(false);
+    };
 
         // Signup Specific Validation
         if (!isLogin) {
