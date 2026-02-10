@@ -436,32 +436,42 @@ function App() {
         }
     };
 
-    // --- NEW: SCREEN SHARE FUNCTION ---
-    const shareScreen = () => {
-        navigator.mediaDevices.getDisplayMedia({ cursor: true })
-            .then(screenStream => {
-                const screenTrack = screenStream.getTracks()[0];
-                const videoTrack = stream.getVideoTracks()[0];
+    // --- UPDATED SCREEN SHARE (Mobile Support + No Mirror Fix) ---
+    const shareScreen = async () => {
+        try {
+            // Mobile aur Laptop dono par try karega
+            const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+            
+            const screenTrack = screenStream.getTracks()[0];
+            const videoTrack = stream.getVideoTracks()[0];
 
-                // Saare doston (Peers) ko Screen dikhana shuru karo
+            // Sabko screen dikhana shuru karo
+            peersRef.current.forEach(peer => {
+                peer.replaceTrack(videoTrack, screenTrack, stream);
+            });
+
+            // Apne khud ke video mein bhi screen dikhao
+            if (userVideoRef.current) {
+                userVideoRef.current.srcObject = screenStream;
+                // IMP: Screen share karte waqt Mirror hata do (Taaki seedha dikhe)
+                userVideoRef.current.style.transform = "none"; 
+            }
+
+            // Jab "Stop Sharing" dabayein
+            screenTrack.onended = () => {
                 peersRef.current.forEach(peer => {
-                    // Current Camera track ko Screen track se badal do
-                    peer.replaceTrack(videoTrack, screenTrack, stream);
+                    peer.replaceTrack(screenTrack, videoTrack, stream);
                 });
-
-                // Apne khud ke video element mein bhi Screen dikhao
-                if (userVideoRef.current) userVideoRef.current.srcObject = screenStream;
-
-                // Jab user "Stop Sharing" button dabaye (Browser wala)
-                screenTrack.onended = () => {
-                    peersRef.current.forEach(peer => {
-                        // Wapis Camera par switch karo
-                        peer.replaceTrack(screenTrack, videoTrack, stream);
-                    });
-                    if (userVideoRef.current) userVideoRef.current.srcObject = stream;
-                };
-            })
-            .catch(err => console.log("Screen Share Error:", err));
+                if (userVideoRef.current) {
+                    userVideoRef.current.srcObject = stream;
+                    // IMP: Camera wapis aaye toh Mirror wapis laga do
+                    userVideoRef.current.style.transform = "scaleX(-1)"; 
+                }
+            };
+        } catch (err) {
+            console.log("Screen Share Error:", err);
+            alert("Unable to share screen. Permissions denied or not supported on this browser.");
+        }
     };
 
     const leaveRoom = () => {
@@ -559,7 +569,13 @@ function App() {
                             onTouchMove={getDragHandlers(!bigMe).onDragMove}
                             onTouchEnd={getDragHandlers(!bigMe).onDragEnd}
                         >
-                            <video muted ref={userVideoRef} autoPlay playsInline style={styles.videoElement} />
+                            <video 
+                                muted 
+                                ref={userVideoRef} 
+                                autoPlay 
+                                playsInline 
+                                style={{ ...styles.videoElement, transform: "scaleX(-1)" }} // <-- Ye naya style lagana hai
+                            />
                             {!isOneOnOne && <div style={styles.nameTag}>You ({currentUser.name})</div>}
                             <div style={{ ...styles.statusDot, background: micOn ? "#4CAF50" : "#f44336" }}></div>
                         </div>
@@ -631,7 +647,7 @@ const styles = {
     videoCard: { position: "relative", background: "#000", borderRadius: "12px", overflow: "hidden", border: "1px solid #333", flex: "1 1 40%", minWidth: "140px", maxWidth: "600px", aspectRatio: "1.33", maxHeight: "45vh" },
     oneOnOnePeer: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 1, background: "#000", display: "flex", alignItems: "center", justifyContent: "center" },
     floatingMe: { position: "fixed", width: "120px", height: "160px", borderRadius: "10px", overflow: "hidden", border: "2px solid #fff", boxShadow: "0 5px 15px rgba(0,0,0,0.5)", zIndex: 50, background: "#000", cursor: "grab", touchAction: "none" },
-    videoElement: { width: "100%", height: "100%", objectFit: "contain", transform: "scaleX(-1)", background: "#000" },
+    videoElement: { width: "100%", height: "100%", objectFit: "contain",background: "#000" },
     nameTag: { position: "absolute", bottom: "10px", left: "10px", background: "rgba(0,0,0,0.6)", color: "white", padding: "4px 8px", borderRadius: "4px", fontSize: "12px" },
     statusDot: { position: "absolute", top: "10px", right: "10px", width: "8px", height: "8px", borderRadius: "50%" },
     controlsBar: { position: "fixed", bottom: "20px", left: "50%", transform: "translateX(-50%)", background: "rgba(40, 40, 40, 0.9)", padding: "10px 20px", borderRadius: "50px", display: "flex", gap: "15px", zIndex: 100, maxWidth: "95%", overflowX: "auto" },
