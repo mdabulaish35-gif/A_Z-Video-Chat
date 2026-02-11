@@ -118,8 +118,8 @@ io.on("connection", socket => {
 
     // --- FILE SHARING EVENT ---
     socket.on("send-file", (data) => {
-        // Data mein file ka content (base64) aur room ID hogi
-        io.to(data.roomId).emit("receive-file", data);
+        // roomID ka spelling sahi kiya
+        io.to(data.roomID).emit("receive-file", data);
     });
 
     socket.on("sending signal", payload => {
