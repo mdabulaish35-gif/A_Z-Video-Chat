@@ -640,8 +640,9 @@ function App() {
                                 {messages.map((msg, index) => (
                                     <div key={index} style={{
                                         ...styles.messageBubble,
-                                        alignSelf: msg.user === (formData.name || "User") ? "flex-end" : "flex-start",
-                                        background: msg.user === (formData.name || "User") ? "#4CAF50" : "#333"
+                                        // formData.name hata kar currentUser.name lagana hai
+                                        alignSelf: msg.user === (currentUser?.name || "User") ? "flex-end" : "flex-start",
+                                        background: msg.user === (currentUser?.name || "User") ? "#4CAF50" : "#333"
                                     }}>
                                         <span style={styles.msgUser}>{msg.user}</span>
                                         <p style={{ margin: "5px 0" }}>{msg.text}</p>
