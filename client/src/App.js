@@ -391,14 +391,21 @@ function App() {
         }
     }
 
-    // --- LISTEN FOR MESSAGES ---
+    // --- LISTEN FOR MESSAGES & FILES ---
     useEffect(() => {
         if (!socketRef.current) return;
         
+        // 1. Purana: Message Aaya
         socketRef.current.on("receive message", (data) => {
             setMessages((oldMsgs) => [...oldMsgs, data]);
         });
-    }, []);
+
+        // 👇 2. Naya: File Aayi (Ye naya code hai)
+        socketRef.current.on("receive-file", (data) => {
+            setMessages((oldMsgs) => [...oldMsgs, data]);
+        });
+
+    }, []); // <--- Dekho, ye bracket sabse last mein hai
 
     const toggleMic = () => {
         if (stream) {
@@ -445,6 +452,37 @@ function App() {
 
         socketRef.current.emit("send message", msgData);
         setMessage(""); // Input khali kar do
+    };
+
+    // --- FEATURE 3: SEND FILE FUNCTION (Updated for your code) ---
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        
+        // 1. Agar file nahi mili ya cancel kar diya
+        if (!file) return;
+
+        // 2. Limit: 2MB se badi file rok do (Warna app hang hoga)
+        if (file.size > 2 * 1024 * 1024) {
+            alert("File too big! Please send under 2MB.");
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (socketRef.current) {
+                const fileData = {
+                    roomID: roomID,       // Aapka variable
+                    user: currentUser ? currentUser.name : "Guest", // Aapka logic
+                    file: reader.result,  // File ka data (Base64)
+                    fileName: file.name,  // File ka naam (e.g., photo.jpg)
+                    type: "file"          // Batane ke liye ki ye file hai
+                };
+
+                // Server ko bhejo
+                socketRef.current.emit("send-file", fileData);
+            }
+        };
+        reader.readAsDataURL(file);
     };
 
     // --- CHAT STATES ---
@@ -636,31 +674,60 @@ function App() {
                                 <button onClick={() => setShowChat(false)} style={styles.closeBtn}>×</button>
                             </div>
                             
-                            <div style={styles.chatMessages}>
-                                {messages.map((msg, index) => (
-                                    <div key={index} style={{
-                                        ...styles.messageBubble,
-                                        // formData.name hata kar currentUser.name lagana hai
-                                        alignSelf: msg.user === (currentUser?.name || "User") ? "flex-end" : "flex-start",
-                                        background: msg.user === (currentUser?.name || "User") ? "#4CAF50" : "#333"
-                                    }}>
-                                        <span style={styles.msgUser}>{msg.user}</span>
-                                        <p style={{ margin: "5px 0" }}>{msg.text}</p>
-                                        <span style={styles.msgTime}>{msg.time}</span>
-                                    </div>
-                                ))}
-                            </div>
+                            {/* --- 1. MESSAGE DISPLAY AREA (Photo dikhane ke liye update kiya) --- */}
+            <div style={styles.chatMessages}>
+                {messages.map((msg, index) => (
+                    <div key={index} style={{
+                        ...styles.messageBubble,
+                        alignSelf: msg.user === (currentUser?.name || "User") ? "flex-end" : "flex-start",
+                        background: msg.user === (currentUser?.name || "User") ? "#4CAF50" : "#333",
+                        maxWidth: "70%" // Thoda limit lagaya taaki photo bahar na jaye
+                    }}>
+                        <span style={styles.msgUser}>{msg.user}</span>
 
-                            <form onSubmit={sendMessage} style={styles.chatInputArea}>
-                                <input 
-                                    type="text" 
-                                    placeholder="Type a message..." 
-                                    value={message} 
-                                    onChange={(e) => setMessage(e.target.value)} 
-                                    style={styles.chatInput}
-                                />
-                                <button type="submit" style={styles.sendBtn}>➤</button>
-                            </form>
+                        {/* 👇 YAHAN LOGIC HAI: Agar File hai to Photo dikhao, nahi to Text 👇 */}
+                        {msg.type === "file" ? (
+                            <img 
+                                src={msg.file} 
+                                alt="attachment" 
+                                style={{ maxWidth: "100%", borderRadius: "8px", marginTop: "5px" }} 
+                            />
+                        ) : (
+                            <p style={{ margin: "5px 0" }}>{msg.text}</p>
+                        )}
+                        
+                        <span style={styles.msgTime}>{msg.time}</span>
+                    </div>
+                ))}
+            </div>
+
+            {/* --- 2. INPUT AREA (Pin Button add kiya) --- */}
+            <div style={{...styles.chatInputArea, display: "flex", alignItems: "center"}}>
+                
+                {/* 📎 Attachment Button */}
+                <label style={{ cursor: "pointer", marginRight: "10px", fontSize: "24px", color: "#fff" }}>
+                    📎
+                    <input 
+                        type="file" 
+                        onChange={handleFileChange} 
+                        style={{ display: "none" }} 
+                    />
+                </label>
+
+                {/* Text Input */}
+                <input 
+                    type="text" 
+                    placeholder="Type a message..." 
+                    value={message} 
+                    onChange={(e) => setMessage(e.target.value)} 
+                    // Enter dabane par message bhejo
+                    onKeyPress={(e) => e.key === 'Enter' ? sendMessage(e) : null}
+                    style={{...styles.chatInput, flex: 1}}
+                />
+
+                {/* Send Button */}
+                <button onClick={sendMessage} style={styles.sendBtn}>➤</button>
+            </div>
                         </div>
                     )}
                 </>

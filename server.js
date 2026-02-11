@@ -116,6 +116,12 @@ io.on("connection", socket => {
         io.to(body.roomID).emit("receive message", body);
     });
 
+    // --- FILE SHARING EVENT ---
+    socket.on("send-file", (data) => {
+        // Data mein file ka content (base64) aur room ID hogi
+        io.to(data.roomId).emit("receive-file", data);
+    });
+
     socket.on("sending signal", payload => {
         io.to(payload.userToSignal).emit("user joined", { signal: payload.signal, callerID: payload.callerID });
     });
