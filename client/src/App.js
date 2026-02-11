@@ -420,14 +420,25 @@ function App() {
         }
     };
 
-    // --- SEND MESSAGE FUNCTION ---
+    // --- SEND MESSAGE FUNCTION (Crash Proof) ---
     const sendMessage = (e) => {
         e.preventDefault(); // Page reload mat hone do
+        
+        // 1. Agar message khali hai to kuch mat karo
         if (message.trim() === "") return;
+
+        // 2. CRASH FIX: Agar user login nahi hai, to "Guest" naam de do (White screen nahi aayegi)
+        const senderName = currentUser ? currentUser.name : "Guest";
+
+        // 3. CRASH FIX: Agar socket connect nahi hai to ruk jao
+        if (!socketRef.current) {
+            console.log("Socket not connected");
+            return;
+        }
 
         const msgData = {
             roomID,
-            user: currentUser.name,
+            user: senderName, // Safe naam use karo
             text: message,
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         };
