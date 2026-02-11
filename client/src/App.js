@@ -708,7 +708,8 @@ const styles = {
     videoElement: { width: "100%", height: "100%", objectFit: "contain", background: "#000" },
     nameTag: { position: "absolute", bottom: "10px", left: "10px", background: "rgba(0,0,0,0.6)", color: "white", padding: "4px 8px", borderRadius: "4px", fontSize: "12px" },
     statusDot: { position: "absolute", top: "10px", right: "10px", width: "8px", height: "8px", borderRadius: "50%" },
-    controlsBar: { position: "fixed", bottom: "20px", left: "50%", transform: "translateX(-50%)", background: "rgba(40, 40, 40, 0.9)", padding: "10px 20px", borderRadius: "50px", display: "flex", gap: "15px", zIndex: 100, maxWidth: "95%", overflowX: "auto" },
+    controlsBar: { position: "fixed", bottom: "20px", left: "50%", transform: "translateX(-50%)", background: "rgba(40, 40, 40, 0.9)", padding: "10px 15px", borderRadius: "50px", display: "flex", gap: "8px", zIndex: 100, maxWidth: "90%", overflowX: "auto",whiteSpace: "nowrap",         
+    scrollbarWidth: "none" },
     
     // Yahan Comma lagana zaroori hai 👇
     controlBtn: { width: "45px", height: "45px", borderRadius: "50%", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },

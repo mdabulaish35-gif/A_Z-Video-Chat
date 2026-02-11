@@ -91,6 +91,9 @@ const socketToRoom = {};
 
 io.on("connection", socket => {
     socket.on("join room", roomID => {
+        // 1. User ko Socket Room mein officially Join karao (Ye Missing tha!) 👇
+        socket.join(roomID);  
+
         if (users[roomID]) {
             const length = users[roomID].length;
             if (length === 5) {
@@ -104,6 +107,7 @@ io.on("connection", socket => {
         
         socketToRoom[socket.id] = roomID;
         const usersInThisRoom = users[roomID].filter(id => id !== socket.id);
+        
         socket.emit("all users", usersInThisRoom);
     });
 
