@@ -705,7 +705,7 @@ function App() {
             <div style={{...styles.chatInputArea, display: "flex", alignItems: "center"}}>
                 
                 {/* 📎 Attachment Button */}
-                <label style={{ cursor: "pointer", marginRight: "10px", fontSize: "24px", color: "#fff" }}>
+                <label style={{ cursor: "pointer", marginRight: "5px", fontSize: "18px", color: "#fff" }}>
                     📎
                     <input 
                         type="file" 
