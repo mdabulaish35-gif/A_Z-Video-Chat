@@ -485,6 +485,10 @@ function App() {
         reader.readAsDataURL(file);
     };
 
+    // --- NEW STATES FOR FULL SCREEN ---
+    const [isChatFullScreen, setIsChatFullScreen] = useState(false); // Chat bada/chhota karne ke liye
+    const [selectedImage, setSelectedImage] = useState(null); // Photo zoom karne ke liye
+
     // --- CHAT STATES ---
     const [showChat, setShowChat] = useState(false); // Chat box dikhana hai ya nahi
     const [message, setMessage] = useState("");      // Jo type kar rahe hain
@@ -663,75 +667,131 @@ function App() {
                         </button>
                     </div> 
                     
-                    {/* 👆 Yahan Controls wala </div> khatam hua */}
-
-
-                    {/* 👇👇 STEP E: CHAT BOX UI (Iske Neeche Paste Hua) 👇👇 */}
+                    {/* --- FLOATING CHAT BOX --- */}
                     {showChat && (
-                        <div style={styles.chatContainer}>
-                            <div style={styles.chatHeader}>
-                                <h4 style={{margin: 0, color: 'white'}}>Chat</h4>
-                                <button onClick={() => setShowChat(false)} style={styles.closeBtn}>×</button>
-                            </div>
-                            
-                            {/* --- 1. MESSAGE DISPLAY AREA (Photo dikhane ke liye update kiya) --- */}
-            <div style={styles.chatMessages}>
-                {messages.map((msg, index) => (
-                    <div key={index} style={{
-                        ...styles.messageBubble,
-                        alignSelf: msg.user === (currentUser?.name || "User") ? "flex-end" : "flex-start",
-                        background: msg.user === (currentUser?.name || "User") ? "#4CAF50" : "#333",
-                        maxWidth: "70%" // Thoda limit lagaya taaki photo bahar na jaye
-                    }}>
-                        <span style={styles.msgUser}>{msg.user}</span>
+        <div style={{
+          position: "absolute", // Video ke upar float karega
+          zIndex: 100, // Video ke upar dikhega
+          
+          // Agar Full Screen hai to pura faila do, nahi to kona pakad lo
+          top: isChatFullScreen ? 0 : "auto",
+          left: isChatFullScreen ? 0 : "auto",
+          bottom: isChatFullScreen ? 0 : "100px", // Bottom se thoda upar
+          right: isChatFullScreen ? 0 : "20px",   // Right side mein
+          
+          width: isChatFullScreen ? "100%" : "300px", // Bada ya Chhota size
+          height: isChatFullScreen ? "100%" : "400px",
+          
+          backgroundColor: "rgba(0, 0, 0, 0.8)", // Thoda transparent black background
+          borderRadius: isChatFullScreen ? "0" : "15px",
+          display: "flex",
+          flexDirection: "column",
+          padding: "10px",
+          transition: "0.3s" // Smooth animation
+        }}>
 
-                        {/* 👇 YAHAN LOGIC HAI: Agar File hai to Photo dikhao, nahi to Text 👇 */}
-                        {msg.type === "file" ? (
-                            <img 
-                                src={msg.file} 
-                                alt="attachment" 
-                                style={{ maxWidth: "100%", borderRadius: "8px", marginTop: "5px" }} 
-                            />
-                        ) : (
-                            <p style={{ margin: "5px 0" }}>{msg.text}</p>
-                        )}
-                        
-                        <span style={styles.msgTime}>{msg.time}</span>
-                    </div>
-                ))}
+          {/* --- CHAT HEADER (Close & Expand Buttons) --- */}
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
+            <h3 style={{ color: "white", margin: 0 }}>💬 Chat</h3>
+            
+            <div>
+              {/* Expand/Minimize Button */}
+              <button onClick={() => setIsChatFullScreen(!isChatFullScreen)} style={{ marginRight: "10px", background: "none", border: "none", color: "white", fontSize: "18px", cursor: "pointer" }}>
+                {isChatFullScreen ? "🔽 Small" : "⤢ Full"}
+              </button>
+
+              {/* Close Chat Button */}
+              <button onClick={() => setShowChat(false)} style={{ background: "red", border: "none", color: "white", padding: "5px 10px", borderRadius: "5px", cursor: "pointer" }}>
+                ✕
+              </button>
             </div>
+          </div>
 
-            {/* --- 2. INPUT AREA (Pin Button add kiya) --- */}
-            <div style={{...styles.chatInputArea, display: "flex", alignItems: "center"}}>
-                
-                {/* 📎 Attachment Button */}
-                <label style={{ cursor: "pointer", marginRight: "5px", fontSize: "18px", color: "#fff" }}>
-                    📎
-                    <input 
-                        type="file" 
-                        onChange={handleFileChange} 
-                        style={{ display: "none" }} 
+          {/* --- MESSAGES LIST (Image Click Logic Add kiya) --- */}
+          <div style={{ flex: 1, overflowY: "scroll", background: "rgba(255,255,255,0.1)", padding: "10px", borderRadius: "10px" }}>
+            {messages.map((msg, index) => (
+              <div key={index} style={{
+                marginBottom: "10px",
+                textAlign: msg.user === (currentUser?.name || "User") ? "right" : "left",
+                color: "white"
+              }}>
+                <div style={{ 
+                    display: "inline-block", 
+                    background: msg.user === (currentUser?.name || "User") ? "#4CAF50" : "#333", 
+                    padding: "8px", 
+                    borderRadius: "10px",
+                    maxWidth: "80%" 
+                }}>
+                  <strong style={{ display: "block", fontSize: "12px", color: "#ddd" }}>{msg.user}</strong>
+
+                  {/* 👇 IMAGE CLICK KARNE PAR FULL SCREEN HOGA 👇 */}
+                  {msg.type === "file" ? (
+                    <img 
+                      src={msg.file} 
+                      alt="attachment" 
+                      onClick={() => setSelectedImage(msg.file)} // <--- YE LINE ZAROORI HAI
+                      style={{ maxWidth: "150px", borderRadius: "8px", marginTop: "5px", cursor: "pointer" }} 
                     />
-                </label>
+                  ) : (
+                    <p style={{ margin: "5px 0" }}>{msg.text}</p>
+                  )}
+                  
+                  <span style={{ fontSize: "10px", color: "#ccc", display: "block", textAlign: "right" }}>{msg.time}</span>
+                </div>
+              </div>
+            ))}
+          </div>
 
-                {/* Text Input */}
-                <input 
-                    type="text" 
-                    placeholder="Type a message..." 
-                    value={message} 
-                    onChange={(e) => setMessage(e.target.value)} 
-                    // Enter dabane par message bhejo
-                    onKeyPress={(e) => e.key === 'Enter' ? sendMessage(e) : null}
-                    style={{...styles.chatInput, flex: 1}}
-                />
+          {/* --- INPUT AREA (Wahi purana wala, bas style thoda clean kiya) --- */}
+          <div style={{ display: "flex", alignItems: "center", marginTop: "10px", gap: "10px" }}>
+            <label style={{ cursor: "pointer", fontSize: "20px", color: "#fff" }}>
+                📎
+                <input type="file" onChange={handleFileChange} style={{ display: "none" }} />
+            </label>
 
-                {/* Send Button */}
-                <button onClick={sendMessage} style={styles.sendBtn}>➤</button>
-            </div>
-                        </div>
-                    )}
+            <input 
+                type="text" 
+                placeholder="Message..." 
+                value={message} 
+                onChange={(e) => setMessage(e.target.value)} 
+                onKeyPress={(e) => e.key === 'Enter' ? sendMessage(e) : null}
+                style={{ flex: 1, padding: "10px", borderRadius: "20px", border: "none" }}
+            />
+
+            <button onClick={sendMessage} style={{ background: "transparent", border: "none", color: "#4CAF50", fontSize: "24px" }}>➤</button>
+          </div>
+
+        </div>
+      )}
                 </>
             )}
+
+        {/* --- FEATURE: FULL SCREEN IMAGE PREVIEW --- */}
+        {selectedImage && (
+        <div style={{
+          position: "absolute",
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.9)", // Kala background
+          zIndex: 9999, // Sabse upar
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center"
+        }} onClick={() => setSelectedImage(null)}> {/* Kahin bhi click karo to band ho jaye */}
+          
+          <img 
+            src={selectedImage} 
+            style={{ maxWidth: "95%", maxHeight: "90%", borderRadius: "10px" }} 
+          />
+          
+          <button style={{
+            position: "absolute", top: "20px", right: "20px",
+            background: "red", color: "white", border: "none",
+            padding: "10px 15px", fontSize: "20px", borderRadius: "50%", cursor: "pointer"
+          }}>
+            ✕
+          </button>
+        </div>
+      )}
         </div>
     );
 }
