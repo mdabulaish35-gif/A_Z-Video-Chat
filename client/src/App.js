@@ -272,6 +272,13 @@ function App() {
     useEffect(() => {
         startVideo("user");
 
+        // --- 1. ROOM FULL ALERT ---
+        socket.on("room full", () => {
+            alert("⚠️ Room is Full! (Max 5 Users allowed)");
+            // User ko wapis home page bhej do ya reload kar do
+            window.location.reload(); 
+        });
+
         socket.on("all users", users => {
             const peers = [];
             users.forEach(userID => {
