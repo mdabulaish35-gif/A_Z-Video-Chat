@@ -7,18 +7,15 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 
-// --- 1. SETUP MIDDLEWARE ---
 app.use(cors());
 app.use(bodyParser.json());
 
-// --- 2. MONGODB CONNECTION ---
 const MONGO_URI = "mongodb+srv://AZ_Video_Chat:Abulaish35@az-db.dew7i3w.mongodb.net/?appName=AZ-DB";
 
 mongoose.connect(MONGO_URI)
 .then(() => console.log("✅ MongoDB Connected"))
 .catch(err => console.log("❌ MongoDB Error:", err));
 
-// --- 3. USER SCHEMA UPDATE (Strict Validation) ---
 const userSchema = new mongoose.Schema({
     name: { 
         type: String, 
@@ -37,12 +34,8 @@ const userSchema = new mongoose.Schema({
     }
 });
 
-// 🚨 IMP: Ye Line Missing thi! Iske bina Signup/Login fail ho jayega
 const User = mongoose.model('User', userSchema);
 
-// --- 4. AUTH ROUTES (Login/Signup API) ---
-
-// SIGNUP
 app.post('/signup', async (req, res) => {
     const { name, email, password } = req.body;
     try {
@@ -53,7 +46,6 @@ app.post('/signup', async (req, res) => {
         await newUser.save();
         res.status(201).json({ message: "User created", user: { name: newUser.name, email: newUser.email } });
     } catch (error) {
-        // Agar Mongoose validation fail hua, to error bhejo
         if(error.name === "ValidationError") {
             return res.status(400).json({ message: error.message, error: error.message });
         }
@@ -61,7 +53,6 @@ app.post('/signup', async (req, res) => {
     }
 });
 
-// LOGIN
 app.post('/login', async (req, res) => {
     const { email, password } = req.body;
     try {
@@ -78,7 +69,6 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// --- 5. SOCKET.IO SETUP (Video Chat Logic) ---
 const io = socket(server, {
     cors: {
         origin: "*", 
@@ -91,7 +81,6 @@ const socketToRoom = {};
 
 io.on("connection", socket => {
     socket.on("join room", roomID => {
-        // 1. User ko Socket Room mein officially Join karao (Ye Missing tha!) 👇
         socket.join(roomID);  
 
         if (users[roomID]) {
@@ -111,14 +100,11 @@ io.on("connection", socket => {
         socket.emit("all users", usersInThisRoom);
     });
 
-    // --- CHAT MESSAGE LOGIC (Add inside io.on connection) ---
     socket.on("send message", (body) => {
         io.to(body.roomID).emit("receive message", body);
     });
 
-    // --- FILE SHARING EVENT ---
     socket.on("send-file", (data) => {
-        // roomID ka spelling sahi kiya
         io.to(data.roomID).emit("receive-file", data);
     });
 
@@ -141,6 +127,5 @@ io.on("connection", socket => {
     });
 });
 
-// --- 6. SERVER START ---
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`🚀 Server is running on port ${PORT}`));
